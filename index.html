@@ -199,17 +199,19 @@
       const hasML = ev.markets.some(m=>m.market==='ML');
       const hasOU = ev.markets.some(m=>m.market==='OU');
       const hasSpread = ev.markets.some(m=>(m.market||'').toUpperCase()==='SPREAD');
+      const hasH2HSeries = ev.markets.some(m=>(m.market||'').toUpperCase()==='H2H_SERIES');
 
       card.innerHTML = `
         <div class="between" style="margin-bottom:16px">
           <div>
             <div class="mut" style="margin-bottom:4px">${dateTxt}</div>
             <h2>${ev.map_label || ('Event '+ev.event_id)}</h2>
-            <div class="mut" style="margin-top:2px">Event ID: ${ev.event_id}</div>
+            <div class="mut" style="margin-top:2px">Event ID: ${ev.event_id} ${ev.series==='H2H'?'<span style="background:var(--accent);color:#000;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:800;margin-left:8px">2/3 SERIES</span>':''}</div>
           </div>
           <span class="pill">${ev.series || 'Tour'} • ${ev.mode || 'stroke'}</span>
         </div>
 
+        ${hasH2HSeries ? '<div class="market-header">Series Winner (2/3)</div><div class="odds" id="h2h_'+ev.event_id+'"></div>' : ''}
         ${hasML ? '<div class="market-header">Moneyline</div><div class="odds" id="ml_'+ev.event_id+'"></div>' : ''}
         ${hasSpread ? '<div class="market-header">Head-to-Head Spread</div><div class="odds" id="sp_'+ev.event_id+'"></div>' : ''}
         ${hasOU ? '<div class="market-header">Player Over/Under</div><div class="odds" id="ou_'+ev.event_id+'"></div>' : ''}
@@ -268,6 +270,32 @@
           t.querySelector('.btn-under').onclick=()=>addToSlip({event_id: ev.event_id, market:'OU', selection:g.under.selection, param:g.under.param, odds:Number(g.under.american_odds)});
           t.querySelector('.btn-over').onclick=()=>addToSlip({event_id: ev.event_id, market:'OU', selection:g.over.selection,  param:g.over.param,  odds:Number(g.over.american_odds)});
           ouDiv.appendChild(t);
+        });
+      }
+
+      // ===== H2H SERIES tickets
+      if (hasH2HSeries) {
+        const h2hDiv = $('#h2h_'+ev.event_id);
+        const h2hMarkets = ev.markets.filter(m => (m.market||'').toUpperCase() === 'H2H_SERIES');
+
+        h2hMarkets.forEach(m=>{
+          const t = document.createElement('div');
+          t.className='ticket';
+          t.style.minWidth = '200px';
+          t.innerHTML = `
+            <div class="big">${m.selection}</div>
+            <div class="mut" style="margin:6px 0">Best of 3 Series</div>
+            <div class="odds-value">${fmtOdds(m.american_odds)}</div>
+            <button class="btn small" style="margin-top:8px;width:100%">Add to Slip</button>
+          `;
+          t.querySelector('button').onclick = () => addToSlip({
+            event_id: ev.event_id,
+            market: 'H2H_SERIES',
+            selection: m.selection,
+            param: m.param || '',
+            odds: Number(m.american_odds)
+          });
+          h2hDiv.appendChild(t);
         });
       }
 
@@ -375,35 +403,122 @@
   }
 
   // ===== Slip =====
+  function amToDecimal(am){ const a=Number(am); return a>=0 ? 1+a/100 : 1+100/Math.abs(a); }
+
+  function calculateParlayOdds(legs){
+    if (!legs || legs.length === 0) return {decimal: 1, american: 0};
+    const decimal = legs.reduce((acc, leg) => acc * amToDecimal(leg.odds), 1);
+    const american = decimal >= 2 ? Math.round((decimal-1)*100) : Math.round(-100/(decimal-1));
+    return {decimal, american};
+  }
+
+  function validateParlayClient(legs){
+    if (legs.length < 2) return {valid: true}; // Not a parlay
+    if (legs.length > 20) return {valid: false, error: "Maximum 20 legs per parlay"};
+
+    const eventsSeen = new Set();
+    const playerMarkets = {};
+
+    for (const lg of legs){
+      // Check same event
+      if (eventsSeen.has(lg.event_id)){
+        return {valid: false, error: `Only one bet per event allowed`};
+      }
+      eventsSeen.add(lg.event_id);
+
+      // Extract player name
+      let player = lg.selection;
+      const mkt = (lg.market||'').toUpperCase();
+
+      if (mkt === 'OU'){
+        player = lg.selection.replace(/\s+(UNDER|OVER)$/i, '').trim();
+      } else if (mkt === 'SPREAD'){
+        const m = lg.selection.match(/^(.*?)\s+[+-]?\d+(?:\.\d+)?$/);
+        if (m) player = m[1].trim();
+      }
+
+      if (!playerMarkets[player]) playerMarkets[player] = [];
+      playerMarkets[player].push(mkt);
+    }
+
+    // Check correlated bets
+    for (const player in playerMarkets){
+      const markets = playerMarkets[player];
+      const uniqueMarkets = [...new Set(markets)];
+      if (uniqueMarkets.length > 1){
+        return {valid: false, error: `Cannot parlay different markets for ${player}`};
+      }
+    }
+
+    return {valid: true};
+  }
+
   function addToSlip(sel){
     const sameEvent = slip.find(l=>l.event_id===sel.event_id);
-    if (sameEvent){ alert('Parlay rule: only one leg per event.'); return; }
-    slip.push(sel); renderSlip();
+    if (sameEvent){
+      alert('Parlay rule: Only one bet per event allowed.');
+      return;
+    }
+
+    // Check for correlated bets
+    const testSlip = [...slip, sel];
+    const validation = validateParlayClient(testSlip);
+    if (!validation.valid){
+      alert(validation.error);
+      return;
+    }
+
+    slip.push(sel);
+    renderSlip();
   }
+
   function clearSlip(){ slip=[]; renderSlip(); }
+
   function renderSlip(){
     const host = $('#slipItems');
     $('#slipCount').textContent = slip.length;
     host.innerHTML='';
+
+    const isParlay = slip.length > 1;
+    const parlayOdds = isParlay ? calculateParlayOdds(slip) : null;
+
     slip.forEach((s,idx)=>{
       const div=document.createElement('div');
       div.className='slip-item';
       div.innerHTML = `
         <div class="between" style="margin-bottom:6px">
-          <div class="mut" style="font-size:10px;text-transform:uppercase">${s.market}</div>
+          <div class="mut" style="font-size:10px;text-transform:uppercase">${s.market} • ${s.event_id}</div>
           <button class="btn small" style="padding:4px 8px;font-size:11px" onclick="event.stopPropagation()">×</button>
         </div>
         <div style="font-weight:700;font-size:13px;margin-bottom:4px">${s.selection}</div>
         ${s.param?`<div class="mut" style="font-size:11px;margin-bottom:4px">Line: ${s.param}</div>`:''}
-        <div class="odds-value" style="font-size:15px">${fmtOdds(s.odds)}</div>
+        <div style="font-size:14px;color:var(--mut)">${fmtOdds(s.odds)}</div>
       `;
       div.querySelector('button').onclick=()=>{ slip.splice(idx,1); renderSlip(); };
       host.appendChild(div);
     });
+
     if (slip.length === 0) {
       host.innerHTML = '<div style="color:var(--mut);font-size:13px;text-align:center;width:100%;padding:20px">Select bets to add to slip</div>';
+      $('#slipNote').textContent = 'Singles or parlays (max 1 leg per event)';
+    } else {
+      // Show parlay summary if multiple legs
+      if (isParlay){
+        const summaryDiv = document.createElement('div');
+        summaryDiv.style.cssText = 'background:var(--accent);color:#000;padding:12px;border-radius:8px;font-weight:800;margin-top:8px';
+        const stake = Number($('#stake').value || 0);
+        const potentialPayout = stake > 0 ? (stake * parlayOdds.decimal).toFixed(2) : '—';
+        summaryDiv.innerHTML = `
+          <div style="font-size:11px;margin-bottom:4px;opacity:0.8">${slip.length}-LEG PARLAY</div>
+          <div style="font-size:20px;margin-bottom:4px">${fmtOdds(parlayOdds.american)}</div>
+          ${stake > 0 ? `<div style="font-size:13px">Potential Payout: ${potentialPayout} coins</div>` : ''}
+        `;
+        host.appendChild(summaryDiv);
+        $('#slipNote').textContent = `${slip.length}-leg parlay - All legs must win. Enter stake to see potential payout.`;
+      } else {
+        $('#slipNote').textContent = 'Single bet - Enter stake and place';
+      }
     }
-    $('#slipNote').textContent = slip.length>1 ? 'Parlay bet - All legs must win' : slip.length===1 ? 'Single bet - Enter stake and place' : 'Singles or parlays (max 1 leg per event)';
   }
 
   // ===== Backend hooks =====
@@ -469,8 +584,21 @@
     host.innerHTML=html+'</tbody></table>';
   }
 
+  // ===== Real-time payout calculator =====
+  function setupStakeListener(){
+    const stakeInput = $('#stake');
+    if (stakeInput){
+      stakeInput.addEventListener('input', ()=>{ renderSlip(); });
+    }
+  }
+
   // ===== Boot =====
-  (function init(){ loadUser(); refreshAll(); renderSlip(); })();
+  (function init(){
+    loadUser();
+    refreshAll();
+    renderSlip();
+    setupStakeListener();
+  })();
 </script>
 </body>
 </html>

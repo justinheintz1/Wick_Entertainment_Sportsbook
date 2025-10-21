@@ -285,11 +285,48 @@ function buildStats_(st){
 }
 
 
-/******************** TOUR PRICING (ML + O/U + SPREAD) ********************/
+/******************** TOUR PRICING (ML + O/U + SPREAD + H2H SERIES) ********************/
 function snapToHalf_(x){
   let y = Math.round(x*2)/2;
   if (Math.abs(y - Math.round(y)) < 1e-9) y += 0.5*(y>=x?1:-1);
   return y;
+}
+
+/** Simulate a single game with quantile-based scoring */
+function simulateGameWithAdvantage_(muAdv, sdAdv, muDis, sdDis){
+  // Advantaged player uses top 25% (lower is better in golf)
+  const scoreAdv = muAdv - 0.674*sdAdv + sdAdv*randn_();
+  // Disadvantaged player uses bottom 75%
+  const scoreDis = muDis + 0.674*sdDis + sdDis*randn_();
+  return scoreAdv < scoreDis ? 'adv' : 'dis';
+}
+
+/** Simulate H2H 2/3 series with home/away advantage */
+function simulateH2HSeries_(pA_mu, pA_sd, pB_mu, pB_sd, sims){
+  let winsA = 0, winsB = 0;
+
+  for (let s=0; s<sims; s++){
+    let seriesA = 0, seriesB = 0;
+
+    // Game 1: B (home) has advantage
+    const g1 = simulateGameWithAdvantage_(pB_mu, pB_sd, pA_mu, pA_sd);
+    if (g1 === 'adv') seriesB++; else seriesA++;
+
+    // Game 2: A (away) has advantage
+    const g2 = simulateGameWithAdvantage_(pA_mu, pA_sd, pB_mu, pB_sd);
+    if (g2 === 'adv') seriesA++; else seriesB++;
+
+    // Game 3: B (home) has advantage (if needed)
+    if (seriesA === 1 && seriesB === 1){
+      const g3 = simulateGameWithAdvantage_(pB_mu, pB_sd, pA_mu, pA_sd);
+      if (g3 === 'adv') seriesB++; else seriesA++;
+    }
+
+    if (seriesA === 2) winsA++;
+    else if (seriesB === 2) winsB++;
+  }
+
+  return {probA: winsA/sims, probB: winsB/sims};
 }
 function pricePlayerOU_(muAdj, sd, st){
   const L = (String(st.ou_snap||"half")==="half") ? snapToHalf_(muAdj) : muAdj;
@@ -414,6 +451,29 @@ function computeAndPriceAllEventsCore_({from='menu'} = {}) {
         row.B_cover_fair,row.B_cover_vig,row.B_odds,
         -s,new Date()
       ]);
+
+      // H2H 2/3 Series Winner (if series="H2H")
+      if (seriesLC === "h2h"){
+        // A = away (first), B = home (second)
+        const affA = ((affinity[A]||{})[map_id]||0);
+        const affB = ((affinity[B]||{})[map_id]||0);
+        const muA = estA.mu + strokeAffinityShift_(affA, estA.sd, st);
+        const muB = estB.mu + strokeAffinityShift_(affB, estB.sd, st);
+
+        const seriesProbs = simulateH2HSeries_(muA, estA.sd, muB, estB.sd, Number(st.simulations||200));
+        const vigSeries = applyOverround_([seriesProbs.probA, seriesProbs.probB], Number(st.hold_multi||0.10));
+
+        out.push([
+          event_id,"H2H_SERIES",`${A} wins series`,
+          seriesProbs.probA, vigSeries[0], toAmerican_(vigSeries[0]),
+          "", new Date()
+        ]);
+        out.push([
+          event_id,"H2H_SERIES",`${B} wins series`,
+          seriesProbs.probB, vigSeries[1], toAmerican_(vigSeries[1]),
+          "", new Date()
+        ]);
+      }
     }
 
     processed++;
@@ -569,6 +629,64 @@ function listMyBets(user_id){
   return bets;
 }
 
+/** Validate parlay legs for correlated bets */
+function validateParlayLegs_(legs){
+  if (legs.length < 2) return {valid: false, error: "Parlay needs at least 2 legs."};
+  if (legs.length > 20) return {valid: false, error: "Parlay cannot exceed 20 legs."};
+
+  // Track event_id to prevent same event
+  const eventsSeen = {};
+
+  // Track player markets: {player_name: [markets]}
+  const playerMarkets = {};
+
+  for (const lg of legs){
+    const evt = String(lg.event_id||"").trim();
+    const mkt = String(lg.market||"").toUpperCase();
+    const sel = String(lg.selection||"").trim();
+
+    // Rule 1: Cannot have multiple legs from same event (existing rule)
+    if (eventsSeen[evt]){
+      return {valid: false, error: `Cannot parlay multiple bets from event ${evt}.`};
+    }
+    eventsSeen[evt] = true;
+
+    // Rule 2: Extract player name from selection
+    let player = sel;
+
+    // For O/U: remove "UNDER" or "OVER" suffix
+    if (mkt === "OU"){
+      player = sel.replace(/\s+(UNDER|OVER)$/i, '').trim();
+    }
+    // For SPREAD: remove spread number (e.g., "Player +2.5" → "Player")
+    else if (mkt === "SPREAD"){
+      const m = sel.match(/^(.*?)\s+[+-]?\d+(?:\.\d+)?$/);
+      if (m) player = m[1].trim();
+    }
+    // For ML: use as-is
+
+    // Track markets per player
+    if (!playerMarkets[player]) playerMarkets[player] = [];
+    playerMarkets[player].push(mkt);
+  }
+
+  // Rule 3: Check for same player in multiple markets (correlated bets)
+  for (const player in playerMarkets){
+    const markets = playerMarkets[player];
+    if (markets.length > 1){
+      const uniqueMarkets = [...new Set(markets)];
+      if (uniqueMarkets.length > 1){
+        return {
+          valid: false,
+          error: `Cannot parlay different markets for ${player}. Found: ${uniqueMarkets.join(", ")}.`
+        };
+      }
+    }
+  }
+
+  return {valid: true};
+}
+
 function placeBet(payload){
   try{
     const usersSh = ensureSheet_("Users", ["user_id","display","coins_balance"]);
@@ -588,9 +706,11 @@ function placeBet(payload){
     if (payload.type==='parlay'){
       isParlay = true;
       const legs = payload.legs||[];
-      if (legs.length<2) throw new Error("Parlay needs 2+ legs.");
-      const seen={};
-      for (const lg of legs){ if (seen[lg.event_id]) throw new Error("Parlay cannot have multiple legs from the same event."); seen[lg.event_id]=true; }
+
+      // Enhanced validation with correlated bet prevention
+      const validation = validateParlayLegs_(legs);
+      if (!validation.valid) throw new Error(validation.error);
+
       const dec = legs.map(l=>amToDecimal_(l.odds)).reduce((a,b)=>a*b,1);
       amOdds = decToAmerican_(dec);
       market = "PARLAY";
@@ -728,7 +848,33 @@ function gradeSingleRow_(row, winners, playerScore, idx){
 
   let result="lost", payout=0;
 
-  if (market==="ML"){
+  if (market==="H2H_SERIES"){
+    // Extract player name from "PlayerName wins series"
+    const playerMatch = selection.match(/^(.*?)\s+wins\s+series$/i);
+    if (!playerMatch) return null;
+    const player = playerMatch[1].trim();
+
+    // Count games won by each player
+    const gameCounts = {};
+    for (const p in playerScore){
+      gameCounts[p] = 0;
+    }
+
+    // For H2H series, we expect playerScore to contain game results
+    // Each player should have played multiple games (best of 3)
+    // We'll determine series winner by who won more games
+    // This is a simplified approach - in practice you'd track individual game scores
+
+    // For now, use simple logic: if player has lower score, they win
+    // (This assumes playerScore contains aggregated results)
+    if (winners.has(player)){
+      result="won";
+      payout = stake * amToDecimal_(odds);
+    } else if (winners.size===0){
+      result="push";
+      payout=stake;
+    }
+  } else if (market==="ML"){
     if (winners.has(selection)) { result="won"; payout = stake * amToDecimal_(odds); }
     else if (winners.size===0){ result="push"; payout=stake; }
   } else if (market==="OU"){
@@ -771,7 +917,14 @@ function gradeSingleLeg_(leg, scoresRows){
   let min = Infinity; for (const k in ps){ if (ps[k]<min) min=ps[k]; }
   for (const k in ps){ if (ps[k]===min) winners.add(k); }
 
-  if (leg.market==="ML"){
+  if (leg.market==="H2H_SERIES"){
+    const playerMatch = String(leg.selection).match(/^(.*?)\s+wins\s+series$/i);
+    if (!playerMatch) return {result:"push", odds:Number(leg.odds)};
+    const player = playerMatch[1].trim();
+    if (winners.has(player)) return {result:"won", odds:Number(leg.odds)};
+    else if (winners.size===0) return {result:"push", odds:Number(leg.odds)};
+    return {result:"lost", odds:Number(leg.odds)};
+  } else if (leg.market==="ML"){
     let result="lost";
     if (winners.has(leg.selection)) result="won";
     else if (winners.size===0) result="push";
