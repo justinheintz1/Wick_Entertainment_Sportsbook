@@ -5,61 +5,91 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
   <title>Tour Sportsbook</title>
   <style>
-    :root{--bg:#0b1020;--card:#141a2a;--mut:#8ea0c2;--text:#e8eefc;--accent:#47d18c;--warn:#ffb020;}
+    /* DraftKings-inspired color scheme */
+    :root{
+      --bg:#0d1117;
+      --bg-dark:#000000;
+      --card:#1a1f2e;
+      --card-hover:#242938;
+      --mut:#9ca3af;
+      --text:#f5f5f5;
+      --accent:#53d337;
+      --accent-dark:#44a82a;
+      --warn:#ffa500;
+      --border:#2d3748;
+      --border-light:#374151;
+    }
     *{box-sizing:border-box}
-    body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Helvetica,Arial,sans-serif}
-    .wrap{max-width:900px;margin:0 auto;padding:12px 12px 96px}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
+    .wrap{max-width:1100px;margin:0 auto;padding:16px 16px 120px}
     .row{display:flex;gap:8px;align-items:center}
     .between{display:flex;align-items:center;justify-content:space-between}
-    .card{background:var(--card);border-radius:16px;padding:12px;margin:10px 0;box-shadow:0 2px 10px rgba(0,0,0,.25)}
-    h1{font-size:20px;margin:8px 0 4px}
-    h2{font-size:16px;margin:8px 0 6px;color:var(--mut)}
-    .pill{display:inline-block;padding:6px 10px;border-radius:999px;background:#1e2740;color:#cfe0ff;font-size:12px}
-    .btn{border:1px solid #334;background:#1a2340;color:#cfe0ff;padding:10px 12px;border-radius:10px;font-weight:600;cursor:pointer}
-    .btn:active{transform:scale(.98)}
-    .btn.primary{background:var(--accent);color:#032614;border-color:#43be7f}
-    .btn.small{padding:6px 8px;font-size:13px}
-    .odds{display:flex;flex-wrap:wrap;gap:8px}
-    .ticket{background:#0f1528;border:1px solid #2a3554;border-radius:12px;padding:10px;min-width:130px}
-    .ticket .big{font-size:16px;font-weight:800}
-    .mut{color:var(--mut)}
-    .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    .tabs{display:flex;gap:8px;margin:8px 0}
-    .tab{padding:8px 10px;border-radius:999px;background:#1e2740;color:#cfe0ff;cursor:pointer}
-    .tab.active{background:var(--accent);color:#042a16}
-    .slip{position:fixed;left:0;right:0;bottom:0;background:#0c1325;border-top:1px solid #2a3554;padding:12px 12px calc(12px + env(safe-area-inset-bottom))}
-    input[type="number"],input[type="text"]{width:100%;padding:8px;border-radius:8px;border:1px solid #334;background:#0b1327;color:#e8eefc}
+    .card{background:var(--card);border-radius:12px;padding:16px;margin:12px 0;box-shadow:0 4px 12px rgba(0,0,0,.4);border:1px solid var(--border)}
+    .card:hover{background:var(--card-hover)}
+    h1{font-size:24px;margin:0;font-weight:700;letter-spacing:-0.5px}
+    h2{font-size:18px;margin:0;font-weight:700;color:var(--text)}
+    .pill{display:inline-block;padding:6px 12px;border-radius:6px;background:var(--bg-dark);color:var(--mut);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;border:1px solid var(--border)}
+    .btn{border:2px solid var(--border);background:var(--card);color:var(--text);padding:10px 16px;border-radius:8px;font-weight:700;cursor:pointer;transition:all .2s;font-size:14px}
+    .btn:hover{background:var(--card-hover);border-color:var(--border-light)}
+    .btn:active{transform:scale(.97)}
+    .btn.primary{background:var(--accent);color:#000;border-color:var(--accent);text-transform:uppercase;letter-spacing:0.5px}
+    .btn.primary:hover{background:var(--accent-dark);border-color:var(--accent-dark)}
+    .btn.small{padding:8px 12px;font-size:13px}
+    .odds{display:flex;flex-wrap:wrap;gap:10px}
+    .ticket{background:var(--bg-dark);border:2px solid var(--border);border-radius:8px;padding:12px;min-width:140px;cursor:pointer;transition:all .2s}
+    .ticket:hover{border-color:var(--accent);background:var(--card)}
+    .ticket .big{font-size:15px;font-weight:700;margin-bottom:6px;color:var(--text)}
+    .ticket .odds-value{font-size:18px;font-weight:800;color:var(--accent);margin:4px 0}
+    .mut{color:var(--mut);font-size:12px;font-weight:500}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .tabs{display:flex;gap:12px;margin:12px 0}
+    .tab{padding:10px 20px;border-radius:8px;background:var(--card);color:var(--mut);cursor:pointer;font-weight:600;border:2px solid var(--border);transition:all .2s}
+    .tab:hover{background:var(--card-hover)}
+    .tab.active{background:var(--accent);color:#000;border-color:var(--accent)}
+    .slip{position:fixed;left:0;right:0;bottom:0;background:var(--bg-dark);border-top:2px solid var(--accent);padding:16px 16px calc(16px + env(safe-area-inset-bottom));box-shadow:0 -4px 20px rgba(0,0,0,.6)}
+    input[type="number"],input[type="text"]{width:100%;padding:10px 12px;border-radius:8px;border:2px solid var(--border);background:var(--card);color:var(--text);font-size:14px;font-weight:500}
+    input:focus{outline:none;border-color:var(--accent)}
     table{width:100%;border-collapse:collapse}
-    td,th{padding:8px;border-bottom:1px solid #2a3554;font-size:13px}
-    .status-open{color:#cfe0ff}
-    .status-won{color:#33d18a;font-weight:700}
-    .status-lost{color:#ff6a6a;font-weight:700}
-    .status-push{color:#ffb020;font-weight:700}
-    .diag{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:12px; white-space:pre-wrap}
+    td,th{padding:10px;border-bottom:1px solid var(--border);font-size:13px;text-align:left}
+    th{font-weight:700;color:var(--mut);text-transform:uppercase;font-size:11px;letter-spacing:0.5px}
+    .status-open{color:var(--mut)}
+    .status-won{color:var(--accent);font-weight:700}
+    .status-lost{color:#ff4444;font-weight:700}
+    .status-push{color:var(--warn);font-weight:700}
+    .diag{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;white-space:pre-wrap}
+    .header-bar{background:var(--bg-dark);padding:12px 16px;border-bottom:2px solid var(--border);margin-bottom:16px}
+    .logo{font-size:20px;font-weight:800;color:var(--accent);letter-spacing:-0.5px}
+    .market-header{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--mut);margin:16px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--border)}
+    .slip-item{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px;min-width:200px}
   </style>
 </head>
 <body>
+<div class="header-bar">
+  <div style="max-width:1100px;margin:0 auto" class="between">
+    <div class="logo">⚡ TOUR SPORTSBOOK</div>
+    <div class="row">
+      <input id="userId" type="text" placeholder="Enter your name" style="width:180px"/>
+      <button class="btn small" onclick="saveUser()">Save</button>
+    </div>
+  </div>
+</div>
+
 <div class="wrap">
-  <div class="between card">
-    <div>
-      <div class="mut" style="font-size:12px">Tour Sportsbook</div>
-      <h1>Sportsbook</h1>
+  <div class="card">
+    <div class="between">
       <div class="tabs">
         <div id="tab-odds" class="tab active" onclick="showTab('odds')">Odds Board</div>
         <div id="tab-bets" class="tab" onclick="showTab('bets')">My Bets</div>
       </div>
-    </div>
-    <div class="row">
-      <input id="userId" type="text" placeholder="Your name (wallet id)" style="width:160px"/>
-      <button class="btn small" onclick="saveUser()">Save</button>
-    </div>
-  </div>
-
-  <div id="wallet" class="card between">
-    <div class="row"><span class="mut">Coins:</span> <span id="coins" style="font-weight:800;margin-left:8px">—</span></div>
-    <div class="row" style="gap:8px">
-      <button class="btn small" onclick="refreshAll()">Refresh</button>
-      <button class="btn small" onclick="reprice()">Reprice</button>
+      <div class="row" style="gap:12px">
+        <div class="row" style="gap:6px">
+          <span class="mut">Balance:</span>
+          <span id="coins" style="font-weight:800;font-size:18px;color:var(--accent)">—</span>
+          <span class="mut">coins</span>
+        </div>
+        <button class="btn small" onclick="refreshAll()">↻ Refresh</button>
+        <button class="btn small" onclick="reprice()">⚡ Reprice</button>
+      </div>
     </div>
   </div>
 
@@ -70,28 +100,33 @@
 
   <!-- My Bets -->
   <div id="screen-bets" style="display:none">
-    <div class="card between">
-      <h2>Betting History</h2>
-      <button class="btn small" onclick="loadMyBets()">Refresh</button>
+    <div class="card">
+      <div class="between">
+        <h2>Betting History</h2>
+        <button class="btn small" onclick="loadMyBets()">↻ Refresh</button>
+      </div>
     </div>
     <div class="card">
-      <div id="betsTable">Loading…</div>
+      <div id="betsTable" style="overflow-x:auto">Loading…</div>
     </div>
   </div>
 </div>
 
 <!-- Bet Slip -->
 <div class="slip">
-  <div class="between">
-    <div class="row"><strong>Bet Slip</strong> <span class="mut" id="slipCount">(0)</span></div>
-    <button class="btn small" onclick="clearSlip()">Clear</button>
+  <div class="between" style="margin-bottom:12px">
+    <div class="row" style="gap:10px">
+      <div style="font-size:16px;font-weight:800;color:var(--text)">BET SLIP</div>
+      <div style="background:var(--accent);color:#000;padding:4px 10px;border-radius:12px;font-weight:800;font-size:13px" id="slipCount">0</div>
+    </div>
+    <button class="btn small" onclick="clearSlip()">Clear All</button>
   </div>
-  <div id="slipItems" class="row" style="gap:8px;flex-wrap:wrap;margin:8px 0;"></div>
+  <div id="slipItems" class="row" style="gap:10px;flex-wrap:wrap;margin-bottom:12px;max-height:120px;overflow-y:auto;"></div>
   <div class="grid">
-    <div><input id="stake" type="number" min="1" placeholder="Stake (coins)"/></div>
+    <div><input id="stake" type="number" min="1" placeholder="Enter stake (coins)" style="font-size:15px"/></div>
     <button class="btn primary" onclick="placeSlip()">Place Bet</button>
   </div>
-  <div class="mut" id="slipNote" style="margin-top:6px;font-size:12px">Singles or parlays (max 1 leg per event).</div>
+  <div class="mut" id="slipNote" style="margin-top:8px;font-size:11px;text-align:center">Singles or parlays (max 1 leg per event)</div>
 </div>
 
 <script>
@@ -159,110 +194,183 @@
       const card = document.createElement('div');
       card.className='card';
       const dateTxt = (ev.date ? new Date(ev.date).toLocaleString() : '');
+
+      // Check which markets exist for this event
+      const hasML = ev.markets.some(m=>m.market==='ML');
+      const hasOU = ev.markets.some(m=>m.market==='OU');
+      const hasSpread = ev.markets.some(m=>(m.market||'').toUpperCase()==='SPREAD');
+
       card.innerHTML = `
-        <div class="between">
+        <div class="between" style="margin-bottom:16px">
           <div>
-            <div class="mut" style="font-size:12px">${dateTxt}</div>
+            <div class="mut" style="margin-bottom:4px">${dateTxt}</div>
             <h2>${ev.map_label || ('Event '+ev.event_id)}</h2>
-            <div class="mut" style="font-size:12px">Event ${ev.event_id}</div>
+            <div class="mut" style="margin-top:2px">Event ID: ${ev.event_id}</div>
           </div>
           <span class="pill">${ev.series || 'Tour'} • ${ev.mode || 'stroke'}</span>
         </div>
 
-        <div style="margin-top:8px">
-          <div class="mut" style="margin-bottom:6px">Moneyline</div>
-          <div class="odds" id="ml_${ev.event_id}"></div>
-        </div>
-
-        <div style="margin-top:10px">
-          <div class="mut" style="margin-bottom:6px">Player Over/Under</div>
-          <div class="odds" id="ou_${ev.event_id}"></div>
-        </div>
-
-        <div style="margin-top:10px">
-          <div class="mut" style="margin-bottom:6px">Head-to-Head Spread</div>
-          <div class="odds" id="sp_${ev.event_id}"></div>
-        </div>
+        ${hasML ? '<div class="market-header">Moneyline</div><div class="odds" id="ml_'+ev.event_id+'"></div>' : ''}
+        ${hasSpread ? '<div class="market-header">Head-to-Head Spread</div><div class="odds" id="sp_'+ev.event_id+'"></div>' : ''}
+        ${hasOU ? '<div class="market-header">Player Over/Under</div><div class="odds" id="ou_'+ev.event_id+'"></div>' : ''}
       `;
       host.appendChild(card);
 
       // ===== ML tickets
-      const mlDiv = $('#ml_'+ev.event_id);
-      ev.markets.filter(m=>m.market==='ML').forEach(m=>{
-        const t=document.createElement('div'); t.className='ticket';
-        t.innerHTML = `
-          <div class="big">${m.selection}</div>
-          <div class="mut">Odds</div>
-          <div>${fmtOdds(m.american_odds)}</div>
-          <button class="btn small" style="margin-top:6px">Add</button>
-        `;
-        t.querySelector('button').onclick=()=>addToSlip({event_id: ev.event_id, market:'ML', selection:m.selection, param:m.param, odds:Number(m.american_odds)});
-        mlDiv.appendChild(t);
-      });
+      if (hasML) {
+        const mlDiv = $('#ml_'+ev.event_id);
+        ev.markets.filter(m=>m.market==='ML').forEach(m=>{
+          const t=document.createElement('div'); t.className='ticket';
+          t.innerHTML = `
+            <div class="big">${m.selection}</div>
+            <div class="mut">Moneyline</div>
+            <div class="odds-value">${fmtOdds(m.american_odds)}</div>
+            <button class="btn small" style="margin-top:8px;width:100%">Add to Slip</button>
+          `;
+          t.querySelector('button').onclick=()=>addToSlip({event_id: ev.event_id, market:'ML', selection:m.selection, param:m.param, odds:Number(m.american_odds)});
+          mlDiv.appendChild(t);
+        });
+      }
 
       // ===== OU tickets grouped by player/line (supports multi-word names)
-      const ouDiv = $('#ou_'+ev.event_id);
-      const ouGroups = {};
-      ev.markets.filter(m=>m.market==='OU').forEach(m=>{
-        const player = String(m.selection).replace(/\s+(UNDER|OVER)$/i,'');
-        const key = player + '|' + (m.param||'');
-        (ouGroups[key]||(ouGroups[key]={player,line:m.param,under:null,over:null}));
-        if (/\sUNDER$/i.test(m.selection)) ouGroups[key].under=m; else ouGroups[key].over=m;
-      });
-      Object.values(ouGroups).forEach(g=>{
-        if (!g.under || !g.over) return;
-        const t=document.createElement('div'); t.className='ticket';
-        t.innerHTML=`
-          <div class="big">${g.player}</div>
-          <div class="mut">Line: ${g.line}</div>
-          <div class="row" style="gap:6px;margin-top:6px">
-            <button class="btn small">Under ${fmtOdds(g.under.american_odds)}</button>
-            <button class="btn small">Over  ${fmtOdds(g.over.american_odds)}</button>
-          </div>
-        `;
-        const [uBtn,oBtn]=t.querySelectorAll('button');
-        uBtn.onclick=()=>addToSlip({event_id: ev.event_id, market:'OU', selection:g.under.selection, param:g.under.param, odds:Number(g.under.american_odds)});
-        oBtn.onclick=()=>addToSlip({event_id: ev.event_id, market:'OU', selection:g.over.selection,  param:g.over.param,  odds:Number(g.over.american_odds)});
-        ouDiv.appendChild(t);
-      });
+      if (hasOU) {
+        const ouDiv = $('#ou_'+ev.event_id);
+        const ouGroups = {};
+        ev.markets.filter(m=>m.market==='OU').forEach(m=>{
+          const player = String(m.selection).replace(/\s+(UNDER|OVER)$/i,'');
+          const key = player + '|' + (m.param||'');
+          if (!ouGroups[key]) {
+            ouGroups[key] = {player:player, line:m.param, under:null, over:null};
+          }
+          if (/\sUNDER$/i.test(m.selection)) ouGroups[key].under=m; else ouGroups[key].over=m;
+        });
+        Object.values(ouGroups).forEach(g=>{
+          if (!g.under || !g.over) return;
+          const t=document.createElement('div'); t.className='ticket';
+          t.innerHTML=`
+            <div class="big">${g.player}</div>
+            <div class="mut" style="margin:6px 0">Total: ${g.line}</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px">
+              <div style="text-align:center">
+                <div style="font-size:11px;color:var(--mut);margin-bottom:4px">UNDER</div>
+                <div class="odds-value" style="font-size:15px">${fmtOdds(g.under.american_odds)}</div>
+              </div>
+              <div style="text-align:center">
+                <div style="font-size:11px;color:var(--mut);margin-bottom:4px">OVER</div>
+                <div class="odds-value" style="font-size:15px">${fmtOdds(g.over.american_odds)}</div>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px">
+              <button class="btn small btn-under">Under</button>
+              <button class="btn small btn-over">Over</button>
+            </div>
+          `;
+          t.querySelector('.btn-under').onclick=()=>addToSlip({event_id: ev.event_id, market:'OU', selection:g.under.selection, param:g.under.param, odds:Number(g.under.american_odds)});
+          t.querySelector('.btn-over').onclick=()=>addToSlip({event_id: ev.event_id, market:'OU', selection:g.over.selection,  param:g.over.param,  odds:Number(g.over.american_odds)});
+          ouDiv.appendChild(t);
+        });
+      }
 
-      // ===== SPREAD tickets (robust parse + grouping)
-      const spDiv = $('#sp_'+ev.event_id);
-      const spGroups = {};
-      ev.markets.filter(m => (m.market||'').toUpperCase() === 'SPREAD').forEach(m=>{
-        // Parse player and numeric line from either selection or param
-        let player = '', line = null;
-        const mm = String(m.selection||'').match(/^(.*)\s+([+-]?\d+(?:\.\d+)?)$/);
-        if (mm){ player = mm[1].trim(); line = Number(mm[2]); }
-        if ((m.param!==undefined && m.param!=="") && !isNaN(Number(m.param))) line = Number(m.param);
-        if (!player || !isFinite(line)) return;
+      // ===== SPREAD tickets (robust parse + grouping) - FIXED
+      if (hasSpread) {
+        const spDiv = $('#sp_'+ev.event_id);
+        const spGroups = {};
+        const spreadMarkets = ev.markets.filter(m => (m.market||'').toUpperCase() === 'SPREAD');
 
-        const key = String(Math.abs(line).toFixed(1));     // group by absolute value
-        const label = `±${Math.abs(line).toFixed(1)}`;
-        (spGroups[key] ||= { label, sides:{} });
-        spGroups[key].sides[player] = {...m, param: line}; // ensure numeric param flows to slip
-      });
+        console.log('Spread markets found:', spreadMarkets.length, 'for event', ev.event_id);
 
-      Object.values(spGroups).forEach(g=>{
-        const players = Object.keys(g.sides);
-        if (players.length < 2) return;                    // need both sides
-        players.sort();
-        const p1 = players[0], p2 = players[1];
-        const m1 = g.sides[p1], m2 = g.sides[p2];
+        spreadMarkets.forEach(m=>{
+          // Parse player and numeric line from selection string
+          let player = '', line = null;
+          const selStr = String(m.selection||'');
+          const mm = selStr.match(/^(.*)\s+([+-]?\d+(?:\.\d+)?)$/);
 
-        const t = document.createElement('div'); t.className='ticket';
-        t.innerHTML = `
-          <div class="big">Line: ${g.label}</div>
-          <div class="row" style="gap:6px;margin-top:6px;flex-wrap:wrap">
-            <button class="btn small">${m1.selection} ${fmtOdds(m1.american_odds)}</button>
-            <button class="btn small">${m2.selection} ${fmtOdds(m2.american_odds)}</button>
-          </div>
-        `;
-        const [aBtn,bBtn]=t.querySelectorAll('button');
-        aBtn.onclick = () => addToSlip({event_id: ev.event_id, market:'SPREAD', selection:m1.selection, param:m1.param, odds:Number(m1.american_odds)});
-        bBtn.onclick = () => addToSlip({event_id: ev.event_id, market:'SPREAD', selection:m2.selection, param:m2.param, odds:Number(m2.american_odds)});
-        spDiv.appendChild(t);
-      });
+          if (mm) {
+            player = mm[1].trim();
+            line = Number(mm[2]);
+          }
+
+          // If param exists and is valid, use it for the line value (it should be signed correctly from backend)
+          if (m.param !== undefined && m.param !== null && m.param !== "" && !isNaN(Number(m.param))) {
+            line = Number(m.param);
+          }
+
+          console.log('Parsed spread:', {player, line, selection: m.selection, param: m.param});
+
+          if (!player || !isFinite(line)) {
+            console.warn('Invalid spread data:', m);
+            return;
+          }
+
+          const key = String(Math.abs(line).toFixed(1));     // group by absolute value
+          const label = Math.abs(line).toFixed(1);
+
+          // Initialize group if it doesn't exist (compatible with older JS engines)
+          if (!spGroups[key]) {
+            spGroups[key] = { label: label, sides: {} };
+          }
+
+          // Store with numeric param for slip
+          spGroups[key].sides[player] = {
+            selection: m.selection,
+            american_odds: m.american_odds,
+            param: line,
+            market: m.market
+          };
+        });
+
+        console.log('Spread groups:', spGroups);
+
+        Object.values(spGroups).forEach(g=>{
+          const players = Object.keys(g.sides);
+          if (players.length < 2) {
+            console.warn('Not enough players for spread group:', g);
+            return;
+          }
+
+          players.sort();
+          const p1 = players[0], p2 = players[1];
+          const m1 = g.sides[p1], m2 = g.sides[p2];
+
+          const t = document.createElement('div');
+          t.className='ticket';
+          t.style.minWidth = '280px';
+          t.innerHTML = `
+            <div class="mut" style="margin-bottom:8px">SPREAD ${g.label}</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <div style="text-align:center;padding:8px;background:var(--card);border-radius:6px">
+                <div style="font-size:13px;font-weight:700;margin-bottom:4px">${p1}</div>
+                <div style="font-size:12px;color:var(--mut);margin-bottom:4px">${m1.selection.match(/[+-]\d+(?:\.\d+)?$/)?.[0] || ''}</div>
+                <div class="odds-value" style="font-size:15px">${fmtOdds(m1.american_odds)}</div>
+              </div>
+              <div style="text-align:center;padding:8px;background:var(--card);border-radius:6px">
+                <div style="font-size:13px;font-weight:700;margin-bottom:4px">${p2}</div>
+                <div style="font-size:12px;color:var(--mut);margin-bottom:4px">${m2.selection.match(/[+-]\d+(?:\.\d+)?$/)?.[0] || ''}</div>
+                <div class="odds-value" style="font-size:15px">${fmtOdds(m2.american_odds)}</div>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+              <button class="btn small btn-spread-a">${p1}</button>
+              <button class="btn small btn-spread-b">${p2}</button>
+            </div>
+          `;
+          t.querySelector('.btn-spread-a').onclick = () => addToSlip({
+            event_id: ev.event_id,
+            market: 'SPREAD',
+            selection: m1.selection,
+            param: m1.param,
+            odds: Number(m1.american_odds)
+          });
+          t.querySelector('.btn-spread-b').onclick = () => addToSlip({
+            event_id: ev.event_id,
+            market: 'SPREAD',
+            selection: m2.selection,
+            param: m2.param,
+            odds: Number(m2.american_odds)
+          });
+          spDiv.appendChild(t);
+        });
+      }
     });
   }
 
@@ -275,21 +383,27 @@
   function clearSlip(){ slip=[]; renderSlip(); }
   function renderSlip(){
     const host = $('#slipItems');
-    $('#slipCount').textContent = `(${slip.length})`;
+    $('#slipCount').textContent = slip.length;
     host.innerHTML='';
     slip.forEach((s,idx)=>{
-      const div=document.createElement('div'); div.className='ticket';
+      const div=document.createElement('div');
+      div.className='slip-item';
       div.innerHTML = `
-        <div class="mut">${s.market} • ${s.event_id}</div>
-        <div style="font-weight:700">${s.selection}</div>
-        <div class="mut">${s.param?('Line: '+s.param):''}</div>
-        <div>${fmtOdds(s.odds)}</div>
-        <button class="btn small" style="margin-top:6px">Remove</button>
+        <div class="between" style="margin-bottom:6px">
+          <div class="mut" style="font-size:10px;text-transform:uppercase">${s.market}</div>
+          <button class="btn small" style="padding:4px 8px;font-size:11px" onclick="event.stopPropagation()">×</button>
+        </div>
+        <div style="font-weight:700;font-size:13px;margin-bottom:4px">${s.selection}</div>
+        ${s.param?`<div class="mut" style="font-size:11px;margin-bottom:4px">Line: ${s.param}</div>`:''}
+        <div class="odds-value" style="font-size:15px">${fmtOdds(s.odds)}</div>
       `;
       div.querySelector('button').onclick=()=>{ slip.splice(idx,1); renderSlip(); };
       host.appendChild(div);
     });
-    $('#slipNote').textContent = slip.length>1 ? 'Parlay selected (1 leg per event).' : 'Single bet. Enter stake.';
+    if (slip.length === 0) {
+      host.innerHTML = '<div style="color:var(--mut);font-size:13px;text-align:center;width:100%;padding:20px">Select bets to add to slip</div>';
+    }
+    $('#slipNote').textContent = slip.length>1 ? 'Parlay bet - All legs must win' : slip.length===1 ? 'Single bet - Enter stake and place' : 'Singles or parlays (max 1 leg per event)';
   }
 
   // ===== Backend hooks =====
