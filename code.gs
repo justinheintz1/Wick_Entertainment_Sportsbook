@@ -629,57 +629,80 @@ function listMyBets(user_id){
   return bets;
 }
 
-/** Validate parlay legs for correlated bets */
+/** Validate parlay legs for conflicting outcomes (corrected logic) */
 function validateParlayLegs_(legs){
   if (legs.length < 2) return {valid: false, error: "Parlay needs at least 2 legs."};
   if (legs.length > 20) return {valid: false, error: "Parlay cannot exceed 20 legs."};
 
-  // Track event_id to prevent same event
-  const eventsSeen = {};
-
-  // Track player markets: {player_name: [markets]}
-  const playerMarkets = {};
+  // Group legs by event_id and market type
+  const groups = {}; // {event_id: {ML: [...legs], SPREAD: [...legs], OU: [...legs], H2H_SERIES: [...legs]}}
 
   for (const lg of legs){
     const evt = String(lg.event_id||"").trim();
     const mkt = String(lg.market||"").toUpperCase();
     const sel = String(lg.selection||"").trim();
 
-    // Rule 1: Cannot have multiple legs from same event (existing rule)
-    if (eventsSeen[evt]){
-      return {valid: false, error: `Cannot parlay multiple bets from event ${evt}.`};
-    }
-    eventsSeen[evt] = true;
-
-    // Rule 2: Extract player name from selection
-    let player = sel;
-
-    // For O/U: remove "UNDER" or "OVER" suffix
-    if (mkt === "OU"){
-      player = sel.replace(/\s+(UNDER|OVER)$/i, '').trim();
-    }
-    // For SPREAD: remove spread number (e.g., "Player +2.5" → "Player")
-    else if (mkt === "SPREAD"){
-      const m = sel.match(/^(.*?)\s+[+-]?\d+(?:\.\d+)?$/);
-      if (m) player = m[1].trim();
-    }
-    // For ML: use as-is
-
-    // Track markets per player
-    if (!playerMarkets[player]) playerMarkets[player] = [];
-    playerMarkets[player].push(mkt);
+    if (!groups[evt]) groups[evt] = {};
+    if (!groups[evt][mkt]) groups[evt][mkt] = [];
+    groups[evt][mkt].push(lg);
   }
 
-  // Rule 3: Check for same player in multiple markets (correlated bets)
-  for (const player in playerMarkets){
-    const markets = playerMarkets[player];
-    if (markets.length > 1){
-      const uniqueMarkets = [...new Set(markets)];
-      if (uniqueMarkets.length > 1){
-        return {
-          valid: false,
-          error: `Cannot parlay different markets for ${player}. Found: ${uniqueMarkets.join(", ")}.`
-        };
+  // Check for conflicts within each event/market combination
+  for (const evt in groups){
+    for (const mkt in groups[evt]){
+      const legsInMarket = groups[evt][mkt];
+
+      if (mkt === "ML"){
+        // ML: Cannot have multiple different players (conflicting winners)
+        if (legsInMarket.length > 1){
+          const selections = legsInMarket.map(l => l.selection);
+          const uniqueSelections = [...new Set(selections)];
+          if (uniqueSelections.length > 1){
+            return {
+              valid: false,
+              error: `Cannot parlay multiple ML picks in event ${evt}. Conflicting: ${uniqueSelections.join(" vs ")}`
+            };
+          }
+        }
+      } else if (mkt === "SPREAD"){
+        // SPREAD: Cannot bet both sides of the same matchup
+        if (legsInMarket.length > 1){
+          return {
+            valid: false,
+            error: `Cannot parlay both sides of spread in event ${evt}.`
+          };
+        }
+      } else if (mkt === "OU"){
+        // OU: Cannot have same player with Over AND Under
+        const playerSides = {}; // {player: [OVER, UNDER]}
+        for (const lg of legsInMarket){
+          const sel = String(lg.selection||"");
+          const player = sel.replace(/\s+(UNDER|OVER)$/i, '').trim();
+          const sideMatch = sel.match(/\s+(UNDER|OVER)$/i);
+          const side = sideMatch ? sideMatch[1].toUpperCase() : '';
+
+          if (!playerSides[player]) playerSides[player] = [];
+          playerSides[player].push(side);
+        }
+
+        // Check for conflicting Over/Under on same player
+        for (const player in playerSides){
+          const sides = playerSides[player];
+          if (sides.includes('OVER') && sides.includes('UNDER')){
+            return {
+              valid: false,
+              error: `Cannot parlay Over and Under for ${player} in event ${evt}.`
+            };
+          }
+        }
+      } else if (mkt === "H2H_SERIES"){
+        // H2H_SERIES: Cannot bet on both players to win series
+        if (legsInMarket.length > 1){
+          return {
+            valid: false,
+            error: `Cannot parlay both series winners in event ${evt}.`
+          };
+        }
       }
     }
   }

@@ -126,7 +126,7 @@
     <div><input id="stake" type="number" min="1" placeholder="Enter stake (coins)" style="font-size:15px"/></div>
     <button class="btn primary" onclick="placeSlip()">Place Bet</button>
   </div>
-  <div class="mut" id="slipNote" style="margin-top:8px;font-size:11px;text-align:center">Singles or parlays (max 1 leg per event)</div>
+  <div class="mut" id="slipNote" style="margin-top:8px;font-size:11px;text-align:center">Singles or parlays (no conflicting picks)</div>
 </div>
 
 <script>
@@ -416,37 +416,58 @@
     if (legs.length < 2) return {valid: true}; // Not a parlay
     if (legs.length > 20) return {valid: false, error: "Maximum 20 legs per parlay"};
 
-    const eventsSeen = new Set();
-    const playerMarkets = {};
+    // Group by event_id and market type
+    const groups = {}; // {event_id: {ML: [...], SPREAD: [...], OU: [...]}}
 
     for (const lg of legs){
-      // Check same event
-      if (eventsSeen.has(lg.event_id)){
-        return {valid: false, error: `Only one bet per event allowed`};
-      }
-      eventsSeen.add(lg.event_id);
-
-      // Extract player name
-      let player = lg.selection;
+      const evt = lg.event_id;
       const mkt = (lg.market||'').toUpperCase();
 
-      if (mkt === 'OU'){
-        player = lg.selection.replace(/\s+(UNDER|OVER)$/i, '').trim();
-      } else if (mkt === 'SPREAD'){
-        const m = lg.selection.match(/^(.*?)\s+[+-]?\d+(?:\.\d+)?$/);
-        if (m) player = m[1].trim();
-      }
-
-      if (!playerMarkets[player]) playerMarkets[player] = [];
-      playerMarkets[player].push(mkt);
+      if (!groups[evt]) groups[evt] = {};
+      if (!groups[evt][mkt]) groups[evt][mkt] = [];
+      groups[evt][mkt].push(lg);
     }
 
-    // Check correlated bets
-    for (const player in playerMarkets){
-      const markets = playerMarkets[player];
-      const uniqueMarkets = [...new Set(markets)];
-      if (uniqueMarkets.length > 1){
-        return {valid: false, error: `Cannot parlay different markets for ${player}`};
+    // Check for conflicts within each event/market
+    for (const evt in groups){
+      for (const mkt in groups[evt]){
+        const legsInMarket = groups[evt][mkt];
+
+        if (mkt === 'ML'){
+          // Cannot have multiple different ML picks
+          if (legsInMarket.length > 1){
+            const selections = legsInMarket.map(l => l.selection);
+            const unique = [...new Set(selections)];
+            if (unique.length > 1){
+              return {valid: false, error: `Cannot parlay conflicting ML picks: ${unique.join(' vs ')}`};
+            }
+          }
+        } else if (mkt === 'SPREAD'){
+          // Cannot bet both sides of spread
+          if (legsInMarket.length > 1){
+            return {valid: false, error: 'Cannot parlay both sides of spread'};
+          }
+        } else if (mkt === 'OU'){
+          // Cannot have Over AND Under for same player
+          const playerSides = {};
+          for (const lg of legsInMarket){
+            const player = lg.selection.replace(/\s+(UNDER|OVER)$/i, '').trim();
+            const sideMatch = lg.selection.match(/\s+(UNDER|OVER)$/i);
+            const side = sideMatch ? sideMatch[1].toUpperCase() : '';
+            if (!playerSides[player]) playerSides[player] = [];
+            playerSides[player].push(side);
+          }
+          for (const player in playerSides){
+            if (playerSides[player].includes('OVER') && playerSides[player].includes('UNDER')){
+              return {valid: false, error: `Cannot parlay Over and Under for ${player}`};
+            }
+          }
+        } else if (mkt === 'H2H_SERIES'){
+          // Cannot bet both series winners
+          if (legsInMarket.length > 1){
+            return {valid: false, error: 'Cannot parlay both series winners'};
+          }
+        }
       }
     }
 
@@ -454,13 +475,7 @@
   }
 
   function addToSlip(sel){
-    const sameEvent = slip.find(l=>l.event_id===sel.event_id);
-    if (sameEvent){
-      alert('Parlay rule: Only one bet per event allowed.');
-      return;
-    }
-
-    // Check for correlated bets
+    // Check for conflicting bets
     const testSlip = [...slip, sel];
     const validation = validateParlayClient(testSlip);
     if (!validation.valid){
@@ -500,7 +515,7 @@
 
     if (slip.length === 0) {
       host.innerHTML = '<div style="color:var(--mut);font-size:13px;text-align:center;width:100%;padding:20px">Select bets to add to slip</div>';
-      $('#slipNote').textContent = 'Singles or parlays (max 1 leg per event)';
+      $('#slipNote').textContent = 'Add bets to your slip. Same event parlays allowed!';
     } else {
       // Show parlay summary if multiple legs
       if (isParlay){
@@ -514,7 +529,7 @@
           ${stake > 0 ? `<div style="font-size:13px">Potential Payout: ${potentialPayout} coins</div>` : ''}
         `;
         host.appendChild(summaryDiv);
-        $('#slipNote').textContent = `${slip.length}-leg parlay - All legs must win. Enter stake to see potential payout.`;
+        $('#slipNote').textContent = `${slip.length}-leg parlay - All legs must win. Same event parlays allowed!`;
       } else {
         $('#slipNote').textContent = 'Single bet - Enter stake and place';
       }
