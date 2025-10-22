@@ -199,6 +199,182 @@ function normInv_(p){
   return (((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q/(((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+1));
 }
 
+/**
+ * Calculate a score at given percentile for a normal distribution
+ * @param {Number} mu - Mean score
+ * @param {Number} sd - Standard deviation
+ * @param {Number} percentile - Percentile (0-1), e.g., 0.75 for top 25%
+ * @return {Number} Score value at that percentile
+ */
+function getPercentileScore_(mu, sd, percentile){
+  const z = normInv_(percentile);
+  return mu + z * sd;
+}
+
+/******************** PARLAY VALIDATION & ODDS ********************/
+/**
+ * Validates whether a set of parlay legs can be combined
+ * @param {Array} legs - Array of leg objects: {event_id, market, selection, param, odds}
+ * @return {Object} {valid: boolean, error: string}
+ */
+function validateParlayLegs_(legs){
+  if (!legs || legs.length < 2) return {valid:false, error:"Need at least 2 legs for parlay"};
+
+  // Group legs by event
+  const byEvent = {};
+  for (const leg of legs){
+    const eid = String(leg.event_id||"");
+    if (!byEvent[eid]) byEvent[eid] = [];
+    byEvent[eid].push(leg);
+  }
+
+  // Check each event for conflicts
+  for (const eid in byEvent){
+    const eventLegs = byEvent[eid];
+
+    // Rule 1: Only ONE moneyline per event (only one player can win)
+    const mlLegs = eventLegs.filter(l => String(l.market).toUpperCase()==="ML");
+    if (mlLegs.length > 1){
+      return {valid:false, error:"Cannot parlay multiple moneylines from the same event (only one player can win)"};
+    }
+
+    // Rule 2: Cannot have OVER and UNDER for same player
+    const ouLegs = eventLegs.filter(l => String(l.market).toUpperCase()==="OU");
+    const ouByPlayer = {};
+    for (const leg of ouLegs){
+      // Extract player name (remove OVER/UNDER suffix)
+      const sel = String(leg.selection||"");
+      const playerName = sel.replace(/\s+(OVER|UNDER)$/i, "").trim();
+      if (!ouByPlayer[playerName]) ouByPlayer[playerName] = [];
+      ouByPlayer[playerName].push(leg);
+    }
+    for (const playerName in ouByPlayer){
+      const playerOUs = ouByPlayer[playerName];
+      const hasOver = playerOUs.some(l => /OVER$/i.test(String(l.selection)));
+      const hasUnder = playerOUs.some(l => /UNDER$/i.test(String(l.selection)));
+      if (hasOver && hasUnder){
+        return {valid:false, error:`Cannot parlay OVER and UNDER for ${playerName}`};
+      }
+    }
+
+    // Rule 3: Cannot have both sides of spread in H2H matchup
+    const spreadLegs = eventLegs.filter(l => String(l.market).toUpperCase()==="SPREAD");
+    if (spreadLegs.length > 1){
+      // In head-to-head golf, both spreads are correlated (if A covers, B doesn't)
+      return {valid:false, error:"Cannot parlay both sides of spread in the same matchup"};
+    }
+  }
+
+  // Rule 4: No duplicate selections
+  const seen = new Set();
+  for (const leg of legs){
+    const key = `${leg.event_id}|${leg.market}|${leg.selection}|${leg.param||""}`;
+    if (seen.has(key)){
+      return {valid:false, error:"Cannot have duplicate selections in parlay"};
+    }
+    seen.add(key);
+  }
+
+  return {valid:true};
+}
+
+/**
+ * Calculates parlay odds from multiple legs
+ * @param {Array} legs - Array of leg objects with odds property
+ * @param {Boolean} isSameEvent - Whether all legs are from same event
+ * @return {Number} Combined American odds
+ */
+function calculateParlayOdds_(legs, isSameEvent){
+  if (!legs || legs.length === 0) return 0;
+
+  // Convert all to decimal odds and multiply
+  let decimalProduct = 1.0;
+  for (const leg of legs){
+    const americanOdds = Number(leg.odds || 0);
+    const decimal = amToDecimal_(americanOdds);
+    decimalProduct *= decimal;
+  }
+
+  // Apply correlation adjustment for same-event parlays
+  if (isSameEvent && legs.length >= 2){
+    // Reduce payout by 3% for correlation
+    const reductionFactor = 0.97;  // 3% reduction
+    decimalProduct *= reductionFactor;
+  }
+
+  // Convert back to American odds
+  return decToAmerican_(decimalProduct);
+}
+
+/******************** H2H SERIES SIMULATION ********************/
+/**
+ * Simulate a best-of-3 H2H series with home advantage
+ * Home player (2nd in list) gets advantage in games 1 and 3
+ * @param {String} homePlayer - Name of home player (second listed)
+ * @param {String} awayPlayer - Name of away player (first listed)
+ * @param {String} map_id - Map ID for the series
+ * @param {Function} ebStroke - EB stroke estimation function
+ * @param {Object} affinity - Affinity map
+ * @param {Object} st - Settings object
+ * @return {Object} {homeProb, awayProb, homeName, awayName}
+ */
+function simulateH2HSeries_(homePlayer, awayPlayer, map_id, ebStroke, affinity, st){
+  // Get estimates for both players
+  const homeEst = ebStroke(homePlayer, map_id);
+  const awayEst = ebStroke(awayPlayer, map_id);
+
+  // Apply affinity
+  const homeAff = ((affinity[homePlayer]||{})[map_id]||0);
+  const awayAff = ((affinity[awayPlayer]||{})[map_id]||0);
+  const homeMu = homeEst.mu + strokeAffinityShift_(homeAff, homeEst.sd, st);
+  const awayMu = awayEst.mu + strokeAffinityShift_(awayAff, awayEst.sd, st);
+
+  // Calculate percentile boundaries
+  // Top 25% = 75th percentile
+  // Bottom 75% midpoint = 37.5th percentile
+  const homeTop25 = getPercentileScore_(homeMu, homeEst.sd, 0.75);
+  const homeBot75 = getPercentileScore_(homeMu, homeEst.sd, 0.375);
+  const awayTop25 = getPercentileScore_(awayMu, awayEst.sd, 0.75);
+  const awayBot75 = getPercentileScore_(awayMu, awayEst.sd, 0.375);
+
+  let homeSeriesWins = 0;
+  const sims = 10000;
+
+  for (let s=0; s<sims; s++){
+    let homeWins = 0;
+    let awayWins = 0;
+
+    // Game 1: Home advantage (top 25% vs bottom 75%)
+    const homeG1 = homeTop25 + homeEst.sd * randn_() * 0.25;
+    const awayG1 = awayBot75 + awayEst.sd * randn_() * 0.75;
+    if (homeG1 < awayG1) homeWins++; else awayWins++;
+    if (homeWins === 2 || awayWins === 2){
+      if (homeWins === 2) homeSeriesWins++;
+      continue;
+    }
+
+    // Game 2: Away advantage (bottom 75% vs top 25%)
+    const homeG2 = homeBot75 + homeEst.sd * randn_() * 0.75;
+    const awayG2 = awayTop25 + awayEst.sd * randn_() * 0.25;
+    if (homeG2 < awayG2) homeWins++; else awayWins++;
+    if (homeWins === 2 || awayWins === 2){
+      if (homeWins === 2) homeSeriesWins++;
+      continue;
+    }
+
+    // Game 3: Home advantage again
+    const homeG3 = homeTop25 + homeEst.sd * randn_() * 0.25;
+    const awayG3 = awayBot75 + awayEst.sd * randn_() * 0.75;
+    if (homeG3 < awayG3) homeWins++; else awayWins++;
+    if (homeWins === 2) homeSeriesWins++;
+  }
+
+  const homeProb = homeSeriesWins / sims;
+  const awayProb = 1 - homeProb;
+
+  return {homeProb, awayProb, homeName:homePlayer, awayName:awayPlayer};
+}
+
 /******************** STATS (RECENCY + EB) ********************/
 /** Uses EVERY row in Scores (no series filter) */
 function buildStats_(st){
@@ -369,7 +545,26 @@ function computeAndPriceAllEventsCore_({from='menu'} = {}) {
     const map_id   = norm(_g(e,"map_id","map"));
     const entrants = parseCSV_( _g(e,"entrants_csv","entrants","players") );
 
-    if (!event_id || seriesLC!=="tour" || modeLC!=="stroke" || !map_id || entrants.length<2) continue;
+    if (!event_id) continue;
+
+    // *** H2H SERIES DETECTION AND PRICING ***
+    if (seriesLC === "h2h" && modeLC === "stroke" && entrants.length === 2 && map_id){
+      // H2H Best-of-3 Series
+      const awayPlayer = entrants[0];  // First listed = away
+      const homePlayer = entrants[1];  // Second listed = home
+
+      const seriesResult = simulateH2HSeries_(homePlayer, awayPlayer, map_id, ebStroke_, affinity, st);
+      const vigSeries = applyOverround_([seriesResult.homeProb, seriesResult.awayProb], Number(st.hold_multi||0.10));
+
+      out.push([event_id, "SERIES_WINNER", homePlayer, seriesResult.homeProb, vigSeries[0], toAmerican_(vigSeries[0]), "", new Date()]);
+      out.push([event_id, "SERIES_WINNER", awayPlayer, seriesResult.awayProb, vigSeries[1], toAmerican_(vigSeries[1]), "", new Date()]);
+
+      processed++;
+      continue;  // Don't price individual game markets for series
+    }
+
+    // *** REGULAR TOUR PRICING ***
+    if (seriesLC!=="tour" || modeLC!=="stroke" || !map_id || entrants.length<2) continue;
 
     // ML
     const probsML = simulateTourML_(entrants, map_id, ebStroke_, affinity, st);
@@ -589,13 +784,24 @@ function placeBet(payload){
       isParlay = true;
       const legs = payload.legs||[];
       if (legs.length<2) throw new Error("Parlay needs 2+ legs.");
-      const seen={};
-      for (const lg of legs){ if (seen[lg.event_id]) throw new Error("Parlay cannot have multiple legs from the same event."); seen[lg.event_id]=true; }
-      const dec = legs.map(l=>amToDecimal_(l.odds)).reduce((a,b)=>a*b,1);
-      amOdds = decToAmerican_(dec);
+
+      // *** NEW: VALIDATE PARLAY ***
+      const validation = validateParlayLegs_(legs);
+      if (!validation.valid){
+        throw new Error(validation.error);
+      }
+
+      // Check if same event parlay
+      const events = new Set(legs.map(l => l.event_id));
+      const isSameEvent = events.size === 1;
+
+      // Calculate odds
+      amOdds = calculateParlayOdds_(legs, isSameEvent);
+
       market = "PARLAY";
       selection = legs.map(l=>`${l.event_id}:${l.market}:${l.selection}${l.param?`@${l.param}`:''}`).join(" | ");
       legsJson = JSON.stringify(legs);
+      const dec = amToDecimal_(amOdds);
       potential = stake * dec;
     } else {
       const s = payload.selection;
