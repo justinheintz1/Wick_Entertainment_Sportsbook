@@ -18,6 +18,7 @@
       --warn:#ffa500;
       --border:#2d3748;
       --border-light:#374151;
+      --selected-cell:#1e3a1e;  /* Dark green for selected cells */
     }
     *{box-sizing:border-box}
     body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
@@ -61,6 +62,58 @@
     .logo{font-size:20px;font-weight:800;color:var(--accent);letter-spacing:-0.5px}
     .market-header{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--mut);margin:16px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--border)}
     .slip-item{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px;min-width:200px}
+
+    /* Table Layout for Game Cards */
+    .game-card{background:var(--card);border-radius:12px;padding:16px;margin:16px 0;box-shadow:0 4px 12px rgba(0,0,0,.4);border:1px solid var(--border)}
+    .game-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid var(--border)}
+    .game-title{font-size:18px;font-weight:700;color:var(--text)}
+    .game-meta{color:var(--mut);font-size:13px;margin-top:4px}
+    .sgp-badge{background:var(--accent);color:#000;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:800;letter-spacing:0.5px}
+
+    /* Betting Table */
+    .bet-table{width:100%;border-collapse:collapse}
+    .bet-table thead th{text-align:center;padding:12px 8px;font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid var(--border)}
+    .bet-table tbody td{padding:0;border-bottom:1px solid var(--border)}
+    .bet-table tbody tr:last-child td{border-bottom:none}
+    .player-name{padding:12px;font-weight:600;color:var(--text)}
+    .bet-cell{padding:12px 8px;text-align:center;cursor:pointer;transition:all .2s;background:transparent}
+    .bet-cell:hover{background:var(--card-hover)}
+    .bet-cell.selected{background:var(--selected-cell);border:2px solid var(--accent)}
+    .bet-cell.disabled{opacity:0.4;cursor:not-allowed;pointer-events:none}
+    .line-value{font-size:14px;font-weight:700;color:var(--text);margin-bottom:2px}
+    .odds-value{font-size:13px;color:var(--accent);font-weight:600}
+
+    /* Series Winner Card */
+    .series-card{background:var(--card);border-radius:12px;padding:16px;margin:16px 0;border:2px solid var(--accent)}
+    .series-header{font-size:16px;font-weight:700;color:var(--text);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px}
+    .series-option{display:flex;justify-content:space-between;align-items:center;padding:12px;background:var(--bg-dark);border-radius:8px;margin:8px 0;cursor:pointer;transition:all .2s;border:2px solid transparent}
+    .series-option:hover{background:var(--card-hover)}
+    .series-option.selected{border-color:var(--accent);background:var(--selected-cell)}
+    .series-player{font-size:15px;font-weight:700}
+    .series-odds{font-size:18px;font-weight:800;color:var(--accent)}
+
+    /* Enhanced Bet Slip */
+    .slip-legs{display:flex;flex-direction:column;gap:8px;margin-bottom:12px;max-height:200px;overflow-y:auto}
+    .slip-leg{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px;display:flex;justify-content:space-between;align-items:center}
+    .leg-info{flex:1}
+    .leg-market{font-size:10px;color:var(--mut);text-transform:uppercase;font-weight:600;margin-bottom:4px}
+    .leg-selection{font-size:13px;font-weight:700;color:var(--text);margin-bottom:2px}
+    .leg-odds{font-size:14px;color:var(--accent);font-weight:700}
+    .leg-remove{background:transparent;border:1px solid var(--border);color:var(--mut);padding:6px 10px;border-radius:6px;cursor:pointer;font-weight:700;transition:all .2s}
+    .leg-remove:hover{background:var(--warn);color:#000;border-color:var(--warn)}
+    .slip-summary{background:var(--card);padding:12px;border-radius:8px;margin-bottom:12px}
+    .summary-row{display:flex;justify-content:space-between;margin:6px 0;font-size:14px}
+    .summary-label{color:var(--mut);font-weight:600}
+    .summary-value{color:var(--text);font-weight:700}
+    .summary-value.highlight{color:var(--accent);font-size:16px}
+
+    /* Mobile Responsive */
+    @media (max-width: 768px){
+      .bet-table thead th{font-size:10px;padding:8px 4px}
+      .player-name{font-size:13px}
+      .line-value{font-size:12px}
+      .odds-value{font-size:11px}
+    }
   </style>
 </head>
 <body>
@@ -121,12 +174,13 @@
     </div>
     <button class="btn small" onclick="clearSlip()">Clear All</button>
   </div>
-  <div id="slipItems" class="row" style="gap:10px;flex-wrap:wrap;margin-bottom:12px;max-height:120px;overflow-y:auto;"></div>
+  <div id="slipLegs" class="slip-legs"></div>
+  <div id="slipSummary" class="slip-summary" style="display:none"></div>
   <div class="grid">
     <div><input id="stake" type="number" min="1" placeholder="Enter stake (coins)" style="font-size:15px"/></div>
     <button class="btn primary" onclick="placeSlip()">Place Bet</button>
   </div>
-  <div class="mut" id="slipNote" style="margin-top:8px;font-size:11px;text-align:center">Singles or parlays (max 1 leg per event)</div>
+  <div class="mut" id="slipNote" style="margin-top:8px;font-size:11px;text-align:center">Add bets to build your slip</div>
 </div>
 
 <script>
@@ -191,14 +245,49 @@
     }
 
     odds.forEach(ev=>{
-      const card = document.createElement('div');
-      card.className='card';
       const dateTxt = (ev.date ? new Date(ev.date).toLocaleString() : '');
 
       // Check which markets exist for this event
+      const hasSeries = ev.markets.some(m=>m.market==='SERIES_WINNER');
       const hasML = ev.markets.some(m=>m.market==='ML');
       const hasOU = ev.markets.some(m=>m.market==='OU');
       const hasSpread = ev.markets.some(m=>(m.market||'').toUpperCase()==='SPREAD');
+
+      // Handle H2H Series separately
+      if (hasSeries){
+        const card = document.createElement('div');
+        card.className = 'series-card';
+        const seriesMarkets = ev.markets.filter(m => m.market === 'SERIES_WINNER');
+
+        card.innerHTML = `
+          <div class="series-header">🏆 Best of 3 Series Winner</div>
+          <div style="margin-bottom:8px;color:var(--mut);font-size:13px">${ev.map_label || ('Event '+ev.event_id)} • ${dateTxt}</div>
+        `;
+
+        seriesMarkets.forEach(m => {
+          const opt = document.createElement('div');
+          opt.className = 'series-option';
+          opt.innerHTML = `
+            <span class="series-player">${m.selection}</span>
+            <span class="series-odds">${fmtOdds(m.american_odds)}</span>
+          `;
+          opt.onclick = () => addToSlip({
+            event_id: ev.event_id,
+            market: m.market,
+            selection: m.selection,
+            param: "",
+            odds: m.american_odds
+          });
+          card.appendChild(opt);
+        });
+
+        host.appendChild(card);
+        return;
+      }
+
+      // Regular tour events
+      const card = document.createElement('div');
+      card.className='card';
 
       card.innerHTML = `
         <div class="between" style="margin-bottom:16px">
@@ -375,35 +464,110 @@
   }
 
   // ===== Slip =====
-  function addToSlip(sel){
-    const sameEvent = slip.find(l=>l.event_id===sel.event_id);
-    if (sameEvent){ alert('Parlay rule: only one leg per event.'); return; }
-    slip.push(sel); renderSlip();
+  function amToDecimal(am){
+    const a = Number(am);
+    return a >= 0 ? 1 + a/100 : 1 + 100/Math.abs(a);
   }
+
+  function calculateParlayOddsFrontend(legs, isSameEvent){
+    let dec = 1;
+    legs.forEach(l => { dec *= amToDecimal(l.odds); });
+    if (isSameEvent && legs.length >= 2) dec *= 0.97;  // 3% correlation adjustment
+    return dec >= 2 ? Math.round((dec-1)*100) : Math.round(-100/(dec-1));
+  }
+
+  function addToSlip(sel){
+    // Allow same-game parlays - no restriction on event_id
+    slip.push(sel);
+    renderSlip();
+  }
+
   function clearSlip(){ slip=[]; renderSlip(); }
+
   function renderSlip(){
-    const host = $('#slipItems');
+    const legs = $('#slipLegs');
+    const summary = $('#slipSummary');
     $('#slipCount').textContent = slip.length;
-    host.innerHTML='';
-    slip.forEach((s,idx)=>{
-      const div=document.createElement('div');
-      div.className='slip-item';
-      div.innerHTML = `
-        <div class="between" style="margin-bottom:6px">
-          <div class="mut" style="font-size:10px;text-transform:uppercase">${s.market}</div>
-          <button class="btn small" style="padding:4px 8px;font-size:11px" onclick="event.stopPropagation()">×</button>
-        </div>
-        <div style="font-weight:700;font-size:13px;margin-bottom:4px">${s.selection}</div>
-        ${s.param?`<div class="mut" style="font-size:11px;margin-bottom:4px">Line: ${s.param}</div>`:''}
-        <div class="odds-value" style="font-size:15px">${fmtOdds(s.odds)}</div>
-      `;
-      div.querySelector('button').onclick=()=>{ slip.splice(idx,1); renderSlip(); };
-      host.appendChild(div);
-    });
-    if (slip.length === 0) {
-      host.innerHTML = '<div style="color:var(--mut);font-size:13px;text-align:center;width:100%;padding:20px">Select bets to add to slip</div>';
+
+    // Render legs
+    legs.innerHTML = '';
+    if (slip.length === 0){
+      legs.innerHTML = '<div class="mut" style="text-align:center;padding:20px">Add bets to build your slip</div>';
+    } else {
+      slip.forEach((leg, idx) => {
+        const div = document.createElement('div');
+        div.className = 'slip-leg';
+        div.innerHTML = `
+          <div class="leg-info">
+            <div class="leg-market">${leg.market} • Event ${leg.event_id}</div>
+            <div class="leg-selection">${leg.selection}</div>
+            ${leg.param ? `<div class="mut" style="font-size:11px">Line: ${leg.param}</div>` : ''}
+            <div class="leg-odds">${fmtOdds(leg.odds)}</div>
+          </div>
+          <button class="leg-remove">×</button>
+        `;
+        div.querySelector('.leg-remove').onclick = () => {
+          slip.splice(idx, 1);
+          renderSlip();
+        };
+        legs.appendChild(div);
+      });
     }
-    $('#slipNote').textContent = slip.length>1 ? 'Parlay bet - All legs must win' : slip.length===1 ? 'Single bet - Enter stake and place' : 'Singles or parlays (max 1 leg per event)';
+
+    // Render summary
+    if (slip.length === 0){
+      summary.style.display = 'none';
+    } else if (slip.length === 1){
+      summary.style.display = 'block';
+      const dec = amToDecimal(slip[0].odds);
+      const stake = Number($('#stake').value || 0);
+      const payout = stake > 0 ? (stake * dec).toFixed(2) : '—';
+      summary.innerHTML = `
+        <div class="summary-row">
+          <span class="summary-label">Type:</span>
+          <span class="summary-value">Single Bet</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-label">Odds:</span>
+          <span class="summary-value">${fmtOdds(slip[0].odds)}</span>
+        </div>
+        ${stake > 0 ? `
+          <div class="summary-row">
+            <span class="summary-label">Potential Payout:</span>
+            <span class="summary-value highlight">$${payout}</span>
+          </div>
+        ` : ''}
+      `;
+    } else {
+      // Parlay
+      summary.style.display = 'block';
+      const events = new Set(slip.map(l => l.event_id));
+      const isSameEvent = events.size === 1;
+      const parlayOdds = calculateParlayOddsFrontend(slip, isSameEvent);
+      const dec = amToDecimal(parlayOdds);
+      const stake = Number($('#stake').value || 0);
+      const payout = stake > 0 ? (stake * dec).toFixed(2) : '—';
+
+      summary.innerHTML = `
+        <div class="summary-row">
+          <span class="summary-label">Type:</span>
+          <span class="summary-value">${isSameEvent ? 'Same Game Parlay' : 'Parlay'} (${slip.length} legs)</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-label">Combined Odds:</span>
+          <span class="summary-value">${fmtOdds(parlayOdds)}</span>
+        </div>
+        ${stake > 0 ? `
+          <div class="summary-row">
+            <span class="summary-label">Potential Payout:</span>
+            <span class="summary-value highlight">$${payout}</span>
+          </div>
+        ` : ''}
+      `;
+    }
+
+    // Update note
+    $('#slipNote').textContent = slip.length>1 ? 'Parlay bet - All legs must win' : slip.length===1 ? 'Single bet - Enter stake and place' : 'Add bets to build your slip';
   }
 
   // ===== Backend hooks =====
@@ -470,7 +634,13 @@
   }
 
   // ===== Boot =====
-  (function init(){ loadUser(); refreshAll(); renderSlip(); })();
+  (function init(){
+    loadUser();
+    refreshAll();
+    renderSlip();
+    // Update slip summary when stake changes
+    $('#stake').addEventListener('input', renderSlip);
+  })();
 </script>
 </body>
 </html>
